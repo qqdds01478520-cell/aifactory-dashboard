@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Factory · 連線中</title>
+<style>
+  body{font-family:system-ui,-apple-system,"Microsoft JhengHei",sans-serif;
+       text-align:center;margin-top:16vh;color:#333}
+  .err{color:#c0392b}
+  a{color:#c1502e}
+</style>
+</head>
+<body>
+<!--
+  AI Factory 永久轉址殼頁（B-2，COO 2026-06-10）。
+  全客戶共用「這一頁」，唯一變數是網址 fragment 的 slug（例 c.html#444a52d24c）。
+  流程：① 讀 central_url.txt 取中央當前 base（中央自己換隧道也不影響此頁網址）
+        ② GET {base}/api/tunnel/resolve/{slug} 取客戶當前隧道 origin
+        ③ location.replace(origin) → 之後 WS/SSE/相對資源直連隧道、不經中央。
+  部署：放進 qqdds01478520-cell/aifactory-dashboard repo 並啟用 GitHub Pages。
+-->
+<h2>AI&nbsp;Factory</h2>
+<p id="msg">正在連線到您的控制台…</p>
+<p id="link"></p>
+<script>
+// central_url.txt 與本頁同 repo；用 raw 永久 URL（避免 Pages 路徑差異）。
+var POINTER = "https://raw.githubusercontent.com/qqdds01478520-cell/aifactory-dashboard/main/central_url.txt";
+var msg = document.getElementById("msg"), link = document.getElementById("link");
+
+function fail(t){ msg.className="err"; msg.textContent = t; }
+
+async function go(){
+  var slug = (location.hash || "").replace(/^#/, "").trim();
+  if(!slug){ fail("連結缺少識別碼，請重新取得您的固定連結。"); return; }
+  try{
+    // ① 中央當前 base（加亂數避快取）
+    var base = (await (await fetch(POINTER + "?t=" + Date.now())).text()).trim().replace(/\/+$/,"");
+    if(!/^https?:\/\//.test(base)){ fail("中央服務暫時無法取得，請稍後再試。"); return; }
+    // ② 解析客戶當前隧道 origin
+    var r = await fetch(base + "/api/tunnel/resolve/" + encodeURIComponent(slug));
+    if(r.status === 404){ fail("此連結尚未啟用，請在控制台完成『遠端開通』。"); return; }
+    var d = await r.json();
+    if(!d.origin){ fail("尚未取得您的控制台位址。"); return; }
+    if(!d.online){ msg.className="err"; msg.textContent = "您的控制台可能離線，仍嘗試連線最後位址…"; }
+    // ③ 轉址（之後直連隧道）
+    link.innerHTML = '<a href="'+d.origin+'">若未自動跳轉，請點此</a>';
+    location.replace(d.origin);
+  }catch(e){ fail("連線發生問題，請檢查網路後重試。"); }
+}
+go();
+</script>
+</body>
+</html>
